@@ -4,6 +4,11 @@ description = "An efficient implementation of the LessPass password generator."
 version     = "0.1.0"
 authors     = ["Grégoire Geis <git@gregoirege.is>"]
 
+homepage   = "https://github.com/6A/lesspass.rs"
+repository = "https://github.com/6A/lesspass.rs"
+readme     = "README.md"
+license    = "GPL-3.0-only"
+
 [lib]
 name = "lesspass"
 path = "src/lib.rs"
