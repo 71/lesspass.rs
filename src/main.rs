@@ -1,5 +1,6 @@
 extern crate lesspass;
 extern crate ring;
+extern crate rpassword;
 extern crate structopt;
 
 use lesspass::*;
@@ -16,14 +17,14 @@ use std::io::Write;
       lesspass example.org contact@example.org password
 
     Generate the fingerprint of a master password:
-      lesspass password
+      lesspass password -F
 
     Generate a 32-characters password using SHA-512:
       echo password | lesspass example.org contact@example.org --sha512 -l 32
-    
+
     Generate the entropy of a password, using 10,000 iterations:
       lesspass example.org contact@example.org password -i 10000 -E > entropy.txt
-    
+
     Generate an alphanumeric password using the previously saved entropy:
       cat entropy.txt | lesspass -S
 
@@ -41,6 +42,7 @@ pub struct Args {
     login: Option<String>,
 
     /// Master password used for fingerprint and password generation.
+    /// If not given, it will be read from stdin.
     #[structopt(name = "password")]
     master_password: Option<String>,
 
@@ -86,7 +88,11 @@ pub struct Args {
 
     /// Return the entropy instead of generating a password.
     #[structopt(short = "E", long = "return-entropy")]
-    return_entropy: bool
+    return_entropy: bool,
+
+    /// Print the fingerprint.
+    #[structopt(short = "F", long = "print-fingerprint")]
+    print_fingerprint: bool
 }
 
 fn main() {
@@ -96,7 +102,7 @@ fn main() {
         let res = if !err.is_empty() {
             out.write_all(err.as_bytes()).map_err(|_| ())
         } else {
-            Args::clap().write_help(&mut out).map_err(|_| ())
+            Args::clap().write_long_help(&mut out).map_err(|_| ())
         };
 
         std::process::exit(if res.is_ok() { 1 } else { 2 })
@@ -109,7 +115,7 @@ fn run() -> Result<(), &'static str> {
         iterations, length, counter,
         sha256, sha384, sha512,
         exclude_lower, exclude_upper, exclude_numbers, exclude_symbols,
-        return_entropy
+        return_entropy, print_fingerprint
     } = Args::from_args();
 
     let mut out = std::io::stdout();
@@ -150,29 +156,41 @@ fn run() -> Result<(), &'static str> {
     // Compute entropy.
     let entropy = match (website, login, master_password) {
         (pass, None, None) => {
-            let master_password = match pass {
+            if print_fingerprint {
+                // Only the password was given, so we return its fingerprint.
+                let master_password = match pass {
+                    Some(pass) => pass,
+                    None => read_password()? // Get password from standard input.
+                };
+
+                print_buffer_hex(get_fingerprint(&master_password).as_ref(), &mut out)?;
+
+                return Ok(())
+            }
+
+            let entropy = match pass {
                 Some(pass) => pass,
-                None => read_stdin()? // Get password from standart input.
+                None => {
+                    // Get entropy from standard input.
+                    if atty::is(atty::Stream::Stdin) {
+                        // Stdin is a terminal, and no one in their right mind would copy
+                        // the entropy by hand, so we cancel early.
+                        return Err("")
+                    }
+
+                    read_password()?
+                }
             };
 
             // If the password matches the format of the entropy, then we use it. Otherwise
             // we only return the fingerprint.
-            match parse_entropy(&master_password) {
-                None => {
-                    // Only the password was given, so we return its fingerprint.
-                    let fingerprint = get_fingerprint(&master_password);
-
-                    for byte in fingerprint.as_ref() {
-                        write!(out, "{:02x}", byte).map_err(|_| "Unable to write to standard output.")?;
-                    }
-
-                    out.write(b"\n").map_err(|_| "Unable to write to standard output.")?;
-
-                    return Ok(())
-                },
+            match parse_entropy(&entropy) {
                 Some(entropy) => {
-                    // The entropy was given to us, so we use it instead.
+                    // The entropy was given to us, so we use it.
                     entropy
+                },
+                None => {
+                    return Err("Invalid entropy format.")
                 }
             }
         },
@@ -180,9 +198,14 @@ fn run() -> Result<(), &'static str> {
             // Everything needed to compute the entropy was given, so we get to it.
             let master_password = match pass {
                 Some(pass) => pass,
-                None => read_stdin()? // Get password from standart input.
+                None => read_password()? // Get password from standard input.
             };
+
             let salt = generate_salt(&website, &login, counter);
+
+            if print_fingerprint {
+                print_buffer_hex(get_fingerprint(&master_password).as_ref(), &mut out)?;
+            }
 
             generate_entropy(&master_password, &salt, algorithm, iterations)
         },
@@ -214,29 +237,35 @@ fn print_buffer_hex(buf: &[u8], out: &mut Write) -> Result<(), &'static str> {
     Ok(())
 }
 
-fn read_stdin() -> Result<String, &'static str> {
-    let stdin = std::io::stdin();
-    let mut input = String::new();
+fn read_password() -> Result<String, &'static str> {
+    // If the input is passed from Stdin, it fails on my machine,
+    // so we handle this here
+    if atty::is(atty::Stream::Stdin) {
+        rpassword::read_password().map_err(|_| "Unable to read password or entropy.")
+    } else {
+        let stdin = std::io::stdin();
+        let mut input = String::new();
 
-    if stdin.read_line(&mut input).is_err() {
-        return Err("Unable to read value from standard input.")
+        if stdin.read_line(&mut input).is_err() {
+            return Err("Unable to read password or entropy from standard input.")
+        }
+
+        // Trim string if needed.
+        if input.ends_with('\n') {
+            let new_len = input.len() - (if input.ends_with("\r\n") { 2 } else { 1 });
+
+            input.truncate(new_len);
+        }
+
+        Ok(input)
     }
-
-    // Trim string if needed.
-    if input.ends_with('\n') {
-        let new_len = input.len() - (if input.ends_with("\r\n") { 2 } else { 1 });
-
-        input.truncate(new_len);
-    }
-
-    Ok(input)
 }
 
 fn parse_entropy(entropy: &str) -> Option<Vec<u8>> {
     if entropy.len() != 64 {
         return None
     }
-    
+
     let mut vec = Vec::with_capacity(32);
 
     for i in 0..32 {

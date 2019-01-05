@@ -185,7 +185,7 @@ pub fn render_password(entropy: &[u8], charset: CharacterSet, len: u8) -> String
 /// Return the SHA-256 fingerprint that corresponds to the given master password.
 pub fn get_fingerprint(password: &str) -> hmac::Signature {
     let key = hmac::SigningKey::new(&digest::SHA256, password.as_bytes());
-    
+
     hmac::sign(&key, b"")
 }
 
