@@ -20,11 +20,13 @@ required-features = [ "default" ]
 
 [dependencies]
 bitflags    = "1.0"
+hmac        = "0.7"
 lazy_static = "1.2"
 num-bigint  = "0.2"
 num-integer = "0.1"
 num-traits  = "0.2"
-ring        = "0.13"
+pbkdf2      = { version = "0.3", default-features = false }
+sha2        = { version = "0.8", default-features = false }
 
 atty      = { version = "0.2", optional = true }
 rpassword = { version = "2.1", optional = true }

@@ -1,17 +1,42 @@
 #[macro_use] extern crate bitflags;
 #[macro_use] extern crate lazy_static;
 
+extern crate hmac;
 extern crate num_bigint;
 extern crate num_integer;
 extern crate num_traits;
-extern crate ring;
+extern crate pbkdf2;
+extern crate sha2;
 
 use num_bigint::BigUint;
 use num_integer::Integer;
 use num_traits::cast::ToPrimitive;
 
-use ring::{digest, digest::Algorithm, hmac, pbkdf2};
+use hmac::{Mac, Hmac};
+use pbkdf2::pbkdf2;
+use sha2::{Sha256, Sha384, Sha512};
 
+/// Selects the hash algorithm to use in PBKDF2.
+#[derive(PartialEq, Eq)]
+pub enum Algorithm {
+    /// SHA2-256.
+    ///
+    /// This is the algorithm used by the canonical LessPass
+    /// implementation.
+    SHA256,
+
+    /// SHA2-384.
+    ///
+    /// Note: Using this algorithm makes the generated passwords
+    /// different from every other LessPass implementation.
+    SHA384,
+
+    /// SHA2-512.
+    ///
+    /// Note: Using this algorithm makes the generated passwords
+    /// different from every other LessPass implementation.
+    SHA512,
+}
 
 bitflags! {
     /// A flag that describes what characters are allowed when generating a password.
@@ -108,7 +133,7 @@ pub fn generate_salt(website: &str, username: &str, counter: u8) -> Vec<u8> {
 }
 
 /// Generate the entropy needed to render the end password using a previously computed salt and a master password.
-pub fn generate_entropy(master_password: &str, salt: &[u8], algorithm: &'static Algorithm, iterations: u32) -> Vec<u8> {
+pub fn generate_entropy(master_password: &str, salt: &[u8], algorithm: Algorithm, iterations: u32) -> Vec<u8> {
     let mut out = Vec::with_capacity(32);
 
     unsafe {
@@ -116,7 +141,18 @@ pub fn generate_entropy(master_password: &str, salt: &[u8], algorithm: &'static 
         out.set_len(32);
     }
 
-    pbkdf2::derive(algorithm, iterations, salt, master_password.as_bytes(), &mut out);
+    let iterations = iterations as usize;
+    match algorithm {
+        Algorithm::SHA256 =>
+            pbkdf2::<Hmac<Sha256>>(master_password.as_bytes(), salt, iterations,
+                                   &mut out),
+        Algorithm::SHA384 =>
+            pbkdf2::<Hmac<Sha384>>(master_password.as_bytes(), salt, iterations,
+                                   &mut out),
+        Algorithm::SHA512 =>
+            pbkdf2::<Hmac<Sha512>>(master_password.as_bytes(), salt, iterations,
+                                   &mut out),
+    }
 
     out
 }
@@ -183,10 +219,11 @@ pub fn render_password(entropy: &[u8], charset: CharacterSet, len: u8) -> String
 }
 
 /// Return the SHA-256 fingerprint that corresponds to the given master password.
-pub fn get_fingerprint(password: &str) -> hmac::Signature {
-    let key = hmac::SigningKey::new(&digest::SHA256, password.as_bytes());
-
-    hmac::sign(&key, b"")
+pub fn get_fingerprint(password: &str) -> Vec<u8> {
+    let mut mac = Hmac::<Sha256>::new_varkey(password.as_bytes())
+        .expect("Hmac's new_varkey implementation is infallible");
+    mac.input(b"");
+    mac.result().code().to_vec()
 }
 
 
@@ -219,24 +256,24 @@ mod tests {
     fn fingerprint() {
         // For keys with messages smaller than SHA256's block size (64
         // bytes), the key is padded with zeros.
-        assert_eq!(get_fingerprint("").as_ref(),
+        assert_eq!(&get_fingerprint(""),
                    &[182, 19, 103, 154, 8, 20, 217, 236, 119, 47, 149, 215, 120,
                      195, 95, 197, 255, 22, 151, 196, 147, 113, 86, 83, 198,
                      199, 18, 20, 66, 146, 197, 173]);
-        assert_eq!(get_fingerprint("foo").as_ref(),
+        assert_eq!(&get_fingerprint("foo"),
                    &[104, 55, 22, 217, 215, 248, 46, 237, 23, 76, 108, 174, 190,
                      8, 110, 233, 51, 118, 199, 157, 124, 97, 221, 103, 14, 160,
                      15, 127, 141, 110, 176, 168]);
         // If it matches the block size, it is used as-is.
-        assert_eq!(get_fingerprint("0123456789abcdef0123456789abcdef\
-                                    0123456789abcdef0123456789abcdef").as_ref(),
+        assert_eq!(&get_fingerprint("0123456789abcdef0123456789abcdef\
+                                    0123456789abcdef0123456789abcdef"),
                    &[8, 18, 71, 220, 104, 187, 127, 175, 191, 19, 34, 0, 19,
                      160, 171, 113, 219, 139, 98, 141, 103, 145, 97, 248, 123,
                      94, 91, 217, 225, 155, 20, 148]);
         // If it is larger, it is hashed first.
-        assert_eq!(get_fingerprint("0123456789abcdef0123456789abcdef\
+        assert_eq!(&get_fingerprint("0123456789abcdef0123456789abcdef\
                                     0123456789abcdef0123456789abcdef\
-                                    larger than SHA256's block size").as_ref(),
+                                    larger than SHA256's block size"),
                    &[46, 55, 32, 12, 232, 162, 61, 209, 182, 227, 200, 183, 211,
                      185, 6, 171, 72, 182, 239, 151, 196, 213, 132, 130, 106,
                      95, 106, 71, 156, 0, 103, 234]);
