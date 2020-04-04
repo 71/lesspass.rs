@@ -210,3 +210,35 @@ fn div_rem(quot: &mut BigUint, div: &BigUint) -> usize {
         None => unreachable!()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fingerprint() {
+        // For keys with messages smaller than SHA256's block size (64
+        // bytes), the key is padded with zeros.
+        assert_eq!(get_fingerprint("").as_ref(),
+                   &[182, 19, 103, 154, 8, 20, 217, 236, 119, 47, 149, 215, 120,
+                     195, 95, 197, 255, 22, 151, 196, 147, 113, 86, 83, 198,
+                     199, 18, 20, 66, 146, 197, 173]);
+        assert_eq!(get_fingerprint("foo").as_ref(),
+                   &[104, 55, 22, 217, 215, 248, 46, 237, 23, 76, 108, 174, 190,
+                     8, 110, 233, 51, 118, 199, 157, 124, 97, 221, 103, 14, 160,
+                     15, 127, 141, 110, 176, 168]);
+        // If it matches the block size, it is used as-is.
+        assert_eq!(get_fingerprint("0123456789abcdef0123456789abcdef\
+                                    0123456789abcdef0123456789abcdef").as_ref(),
+                   &[8, 18, 71, 220, 104, 187, 127, 175, 191, 19, 34, 0, 19,
+                     160, 171, 113, 219, 139, 98, 141, 103, 145, 97, 248, 123,
+                     94, 91, 217, 225, 155, 20, 148]);
+        // If it is larger, it is hashed first.
+        assert_eq!(get_fingerprint("0123456789abcdef0123456789abcdef\
+                                    0123456789abcdef0123456789abcdef\
+                                    larger than SHA256's block size").as_ref(),
+                   &[46, 55, 32, 12, 232, 162, 61, 209, 182, 227, 200, 183, 211,
+                     185, 6, 171, 72, 182, 239, 151, 196, 213, 132, 130, 106,
+                     95, 106, 71, 156, 0, 103, 234]);
+    }
+}
