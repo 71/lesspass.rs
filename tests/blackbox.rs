@@ -4,7 +4,6 @@
 //! the script `make-blackbox-tests.sh` located in the same directory
 //! as this test.
 
-extern crate ring;
 extern crate lesspass;
 use lesspass::*;
 
@@ -12,7 +11,7 @@ pub fn generate(website: &str, login: &str, password: &str, counter: u8,
                 length: u8, charset: CharacterSet) -> String {
     let salt = generate_salt(website, login, counter);
     let entropy = generate_entropy(password, &salt,
-                                   &ring::digest::SHA256,
+                                   Algorithm::SHA256,
                                    100000);
     render_password(&entropy, charset, length)
 }

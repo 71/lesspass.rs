@@ -1,10 +1,8 @@
 extern crate lesspass;
-extern crate ring;
 extern crate rpassword;
 extern crate structopt;
 
 use lesspass::*;
-use ring::digest;
 use structopt::StructOpt;
 
 use std::io::Write;
@@ -123,9 +121,9 @@ fn run() -> Result<(), &'static str> {
     // Validate and find digest.
     let algorithm = match (sha256, sha384, sha512) {
         (false, false, false) |
-        (true , false, false) => &digest::SHA256,
-        (false, true , false) => &digest::SHA384,
-        (false, false, true ) => &digest::SHA512,
+        (true , false, false) => Algorithm::SHA256,
+        (false, true , false) => Algorithm::SHA384,
+        (false, false, true ) => Algorithm::SHA512,
 
         _ => return Err("Only one algorithm must be provided.")
     };
