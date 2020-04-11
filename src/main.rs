@@ -1,16 +1,11 @@
-extern crate lesspass;
-extern crate rpassword;
-extern crate structopt;
-
 use lesspass::*;
 use structopt::StructOpt;
 
 use std::io::Write;
 
-
 /// Generates LessPass-like passwords.
 #[derive(StructOpt)]
-#[structopt(raw(after_help = r#""EXAMPLES:
+#[structopt(after_help = r#""EXAMPLES:
     Generate a password:
       lesspass example.org contact@example.org password
 
@@ -28,7 +23,7 @@ use std::io::Write;
 
     The two previous examples are obviously equivalent to:
       lesspass example.org contact@example.org password -i 10000 -S
-""#))]
+""#)]
 pub struct Args {
 
     /// Target website.
@@ -225,7 +220,7 @@ fn run() -> Result<(), &'static str> {
     Ok(())
 }
 
-fn print_buffer_hex(buf: &[u8], out: &mut Write) -> Result<(), &'static str> {
+fn print_buffer_hex(buf: &[u8], out: &mut dyn Write) -> Result<(), &'static str> {
     for byte in buf {
         write!(out, "{:02x}", byte).map_err(|_| "Unable to write to standard output.")?;
     }

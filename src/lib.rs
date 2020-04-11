@@ -1,12 +1,7 @@
+#![allow(non_upper_case_globals)]
+
 #[macro_use] extern crate bitflags;
 #[macro_use] extern crate lazy_static;
-
-extern crate hmac;
-extern crate num_bigint;
-extern crate num_integer;
-extern crate num_traits;
-extern crate pbkdf2;
-extern crate sha2;
 
 use num_bigint::BigUint;
 use num_integer::Integer;

@@ -3,9 +3,9 @@ lesspass.rs
 
 An (unofficial) fully featured Rust client for [LessPass](https://lesspass.com).
 
-This client is focused on performances, and uses [Ring](https://briansmith.org/rustdoc/ring) behind the scenes.  
-Allocations were avoided wherever possible, and some parts of the password generation algorithms were sligthly
-changed to avoid needless allocations.
+This client is focused on performances: allocations were avoided wherever possible,
+and some parts of the password generation algorithms were sligthly changed to avoid
+needless allocations.
 
 
 ## Usage
@@ -59,17 +59,20 @@ EXAMPLES:
 
 ## Benchmarks
 
-Although benchmarking against a Node.JS app is not very fair, the following results were obtained
-when generating a password.
+Even though the Python implementation uses hashlib behind the scenes and is therefore
+pretty fast, this Rust implementation manages to more than double the speed of execution.
 
-#### [lesspass-cli](https://www.npmjs.com/package/lesspass-cli)
+Comparing Python and Rust applications for performance is not very relevant, but
+it should at least tell you that this implementation should fit your needs.
+
+#### [lesspass-cli](https://github.com/lesspass/lesspass/tree/master/cli)
 ```
 $ lesspass example.org contact@example.org password -L 32
-322 ms
+139 ms
 ```
 
 #### [lesspass.rs](#)
 ```
 $ lesspass example.org contact@example.org password -l 32
-53 ms
+64 ms
 ```
