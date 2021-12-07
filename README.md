@@ -53,7 +53,7 @@ EXAMPLES:
     Generate an alphanumeric password using the previously saved entropy:
       cat entropy.txt | lesspass -S
 
-    The two previous examples are obviously equivalent to:
+    The two previous examples are equivalent to:
       lesspass example.org contact@example.org password -i 10000 -S
 ```
 
