@@ -60,19 +60,25 @@ EXAMPLES:
 ## Benchmarks
 
 Even though the Python implementation uses hashlib behind the scenes and is therefore
-pretty fast, this Rust implementation manages to more than double the speed of execution.
+pretty fast, this Rust implementation manages to more than triple the speed of execution.
 
 Comparing Python and Rust applications for performance is not very relevant, but
 it should at least tell you that this implementation should fit your needs.
 
+Benchmarks below using [hyperfine](https://github.com/sharkdp/hyperfine):
+
 #### [lesspass-cli](https://github.com/lesspass/lesspass/tree/master/cli)
 ```
 $ lesspass example.org contact@example.org password -L 32
-139 ms
+Benchmark 1: lesspass example.org contact@example.org password -L 32
+  Time (mean ± σ):     213.0 ms ±   1.1 ms    [User: 0.0 ms, System: 0.0 ms]
+  Range (min … max):   211.2 ms … 215.0 ms    13 runs
 ```
 
 #### [lesspass.rs](#)
 ```
 $ lesspass example.org contact@example.org password -l 32
-64 ms
+Benchmark 1: lesspass example.org contact@example.org password -l 32
+  Time (mean ± σ):      61.3 ms ±   0.3 ms    [User: 0.7 ms, System: 4.1 ms]
+  Range (min … max):    60.8 ms …  62.3 ms    45 runs
 ```
