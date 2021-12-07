@@ -7,6 +7,9 @@ This client is focused on performances: allocations were avoided wherever possib
 and some parts of the password generation algorithms were sligthly changed to avoid
 needless allocations.
 
+The library also supports `no_std` builds, though a few utilities are provided if
+`std` is available.
+
 
 ## Usage
 ```
