@@ -11,9 +11,15 @@ TEST=0
 for SITE in example.org example.net; do
     for LOGIN in user@example.org user; do
         for PASSWORD in password foobar; do
-            for COUNTER in 1 2; do
-                for LENGTH in 12 16; do
-                    echo "#[test]\nfn vectors_$(printf "%02d" $TEST)() {"
+            for COUNTER in 1 8 32 100000; do
+                for LENGTH in 12 16 32; do
+                    echo "#[test]"
+
+                    if [ $TEST -ge 4 ]; then
+                        echo "#[cfg_attr(debug_assertions, ignore)]"
+                    fi
+
+                    echo "fn vectors_$(printf "%03d" $TEST)() {"
                     echo -n "    t($TEST, "
                     echo -n "\"$SITE\", "
                     echo -n "\"$LOGIN\", "
@@ -35,14 +41,15 @@ for SITE in example.org example.net; do
                                                        --${UPPER}uppercase \
                                                        --${DIGITS}digits \
                                                        --${SYMBOLS}symbols \
-                                                   | sed -e 's/\\/\\\\\\\\/g' -e 's/"/\\"/g' )\""
+                                                   | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' )\""
                                     echo -n ", "
                                 done
                             done
                         done
                     done
                     echo "]);"
-                    echo "}\n"
+                    echo "}"
+                    echo
                     TEST="$(($TEST + 1))"
                 done
             done

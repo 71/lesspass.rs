@@ -21,11 +21,10 @@ use std::io::Write;
     Generate an alphanumeric password using the previously saved entropy:
       cat entropy.txt | lesspass -S
 
-    The two previous examples are obviously equivalent to:
+    The two previous examples are equivalent to:
       lesspass example.org contact@example.org password -i 10000 -S
 ""#)]
 pub struct Args {
-
     /// Target website.
     #[structopt(name = "website")]
     website: Option<String>,
@@ -45,11 +44,11 @@ pub struct Args {
 
     /// Length of the generated password.
     #[structopt(short = "l", long = "length", default_value = "16")]
-    length: u8,
+    length: u32,
 
     /// Arbitrary number used for password generation.
     #[structopt(short = "c", long = "counter", default_value = "1")]
-    counter: u8,
+    counter: u32,
 
     /// Use SHA-256 for password generation.
     #[structopt(long = "sha256")]
@@ -85,7 +84,7 @@ pub struct Args {
 
     /// Print the fingerprint.
     #[structopt(short = "F", long = "print-fingerprint")]
-    print_fingerprint: bool
+    print_fingerprint: bool,
 }
 
 fn main() {
@@ -104,46 +103,62 @@ fn main() {
 
 fn run() -> Result<(), &'static str> {
     let Args {
-        website, login, master_password,
-        iterations, length, counter,
-        sha256, sha384, sha512,
-        exclude_lower, exclude_upper, exclude_numbers, exclude_symbols,
-        return_entropy, print_fingerprint
+        website,
+        login,
+        master_password,
+        iterations,
+        length,
+        counter,
+        sha256,
+        sha384,
+        sha512,
+        exclude_lower,
+        exclude_upper,
+        exclude_numbers,
+        exclude_symbols,
+        return_entropy,
+        print_fingerprint,
     } = Args::from_args();
 
     let mut out = std::io::stdout();
 
     // Validate and find digest.
     let algorithm = match (sha256, sha384, sha512) {
-        (false, false, false) |
-        (true , false, false) => Algorithm::SHA256,
-        (false, true , false) => Algorithm::SHA384,
-        (false, false, true ) => Algorithm::SHA512,
+        (false, false, false) | (true, false, false) => Algorithm::SHA256,
+        (false, true, false) => Algorithm::SHA384,
+        (false, false, true) => Algorithm::SHA512,
 
-        _ => return Err("Only one algorithm must be provided.")
+        _ => return Err("Only one algorithm must be provided."),
     };
 
     // Validate and find allowed characters.
     let mut charset = CharacterSet::All;
 
-    if exclude_lower { charset.remove(CharacterSet::Lowercase); }
-    if exclude_upper { charset.remove(CharacterSet::Uppercase); }
-    if exclude_numbers { charset.remove(CharacterSet::Numbers); }
-    if exclude_symbols { charset.remove(CharacterSet::Symbols); }
+    if exclude_lower {
+        charset.remove(CharacterSet::Lowercase);
+    }
+    if exclude_upper {
+        charset.remove(CharacterSet::Uppercase);
+    }
+    if exclude_numbers {
+        charset.remove(CharacterSet::Numbers);
+    }
+    if exclude_symbols {
+        charset.remove(CharacterSet::Symbols);
+    }
 
     if charset.is_empty() {
-        return Err("Not all characters can be excluded from the generation algorithm.")
+        return Err("Not all characters can be excluded from the generation algorithm.");
     }
 
     // Validate length / counter / iterations.
-    if length < 6 || length > 64 {
-        return Err("The length must be an integer in the [6; 64] range.")
+    let length = length as usize;
+
+    if !(MIN_PASSWORD_LEN..=MAX_PASSWORD_LEN).contains(&length) {
+        return Err("The length must be an integer in the [6; 64] range.");
     }
-    if counter > 99 {
-        return Err("The counter must be an integer in the [0; 99] range.")
-    }
-    if iterations < 1 || iterations > 100_000_000 {
-        return Err("The iterations must be an integer in the [1; 100,000,000] range.")
+    if !(1..=100_000_000).contains(&iterations) {
+        return Err("The iterations must be an integer in the [1; 100,000,000] range.");
     }
 
     // Compute entropy.
@@ -153,12 +168,12 @@ fn run() -> Result<(), &'static str> {
                 // Only the password was given, so we return its fingerprint.
                 let master_password = match pass {
                     Some(pass) => pass,
-                    None => read_password()? // Get password from standard input.
+                    None => read_password()?, // Get password from standard input.
                 };
 
                 print_buffer_hex(get_fingerprint(&master_password).as_ref(), &mut out)?;
 
-                return Ok(())
+                return Ok(());
             }
 
             let entropy = match pass {
@@ -168,7 +183,7 @@ fn run() -> Result<(), &'static str> {
                     if atty::is(atty::Stream::Stdin) {
                         // Stdin is a terminal, and no one in their right mind would copy
                         // the entropy by hand, so we cancel early.
-                        return Err("")
+                        return Err("");
                     }
 
                     read_password()?
@@ -181,17 +196,15 @@ fn run() -> Result<(), &'static str> {
                 Some(entropy) => {
                     // The entropy was given to us, so we use it.
                     entropy
-                },
-                None => {
-                    return Err("Invalid entropy format.")
                 }
+                None => return Err("Invalid entropy format."),
             }
-        },
+        }
         (Some(website), Some(login), pass) => {
             // Everything needed to compute the entropy was given, so we get to it.
             let master_password = match pass {
                 Some(pass) => pass,
-                None => read_password()? // Get password from standard input.
+                None => read_password()?, // Get password from standard input.
             };
 
             let salt = generate_salt(&website, &login, counter);
@@ -201,10 +214,10 @@ fn run() -> Result<(), &'static str> {
             }
 
             generate_entropy(&master_password, &salt, algorithm, iterations)
-        },
+        }
         _ => {
             // We cannot do anything with what we were given; return an error.
-            return Err("")
+            return Err("");
         }
     };
 
@@ -225,7 +238,8 @@ fn print_buffer_hex(buf: &[u8], out: &mut dyn Write) -> Result<(), &'static str>
         write!(out, "{:02x}", byte).map_err(|_| "Unable to write to standard output.")?;
     }
 
-    out.write(b"\n").map_err(|_| "Unable to write to standard output.")?;
+    out.write(b"\n")
+        .map_err(|_| "Unable to write to standard output.")?;
 
     Ok(())
 }
@@ -240,7 +254,7 @@ fn read_password() -> Result<String, &'static str> {
         let mut input = String::new();
 
         if stdin.read_line(&mut input).is_err() {
-            return Err("Unable to read password or entropy from standard input.")
+            return Err("Unable to read password or entropy from standard input.");
         }
 
         // Trim string if needed.
@@ -255,17 +269,16 @@ fn read_password() -> Result<String, &'static str> {
 }
 
 fn parse_entropy(entropy: &str) -> Option<Vec<u8>> {
-    if entropy.len() != 64 {
-        return None
+    if (entropy.len() & 1) == 1 {
+        return None;
     }
 
-    let mut vec = Vec::with_capacity(32);
+    let len = entropy.len() / 2;
+    let mut result = Vec::with_capacity(len);
 
-    for i in 0..32 {
-        vec.push(
-            u8::from_str_radix(&entropy[i*2 .. i*2+2], 16).ok()?
-        );
+    for i in 0..len {
+        result.push(u8::from_str_radix(&entropy[i * 2..i * 2 + 2], 16).ok()?);
     }
 
-    Some(vec)
+    Some(result)
 }
