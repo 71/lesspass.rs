@@ -5,7 +5,7 @@ use std::io::Write;
 
 /// Generates LessPass-like passwords.
 #[derive(StructOpt)]
-#[structopt(after_help = r#""EXAMPLES:
+#[structopt(after_help = r#"EXAMPLES:
     Generate a password:
       lesspass example.org contact@example.org password
 
@@ -23,7 +23,9 @@ use std::io::Write;
 
     The two previous examples are equivalent to:
       lesspass example.org contact@example.org password -i 10000 -S
-""#)]
+
+
+"#)]
 pub struct Args {
     /// Target website.
     #[structopt(name = "website")]
