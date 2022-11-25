@@ -1,11 +1,11 @@
+use clap::{CommandFactory as _, Parser};
 use lesspass::*;
-use structopt::StructOpt;
 
 use std::io::Write;
 
 /// Generates LessPass-like passwords.
-#[derive(StructOpt)]
-#[structopt(after_help = r#"EXAMPLES:
+#[derive(Parser)]
+#[command(after_help = r#"EXAMPLES:
     Generate a password:
       lesspass example.org contact@example.org password
 
@@ -28,64 +28,64 @@ use std::io::Write;
 "#)]
 pub struct Args {
     /// Target website.
-    #[structopt(name = "website")]
+    #[arg(name = "website")]
     website: Option<String>,
 
     /// Username or email address.
-    #[structopt(name = "login")]
+    #[arg(name = "login")]
     login: Option<String>,
 
     /// Master password used for fingerprint and password generation.
     /// If not given, it will be read from stdin.
-    #[structopt(name = "password")]
+    #[arg(name = "password")]
     master_password: Option<String>,
 
     /// Number of iterations used for entropy generation.
-    #[structopt(short = "i", long = "iterations", default_value = "100000")]
+    #[arg(short = 'i', long = "iterations", default_value = "100000")]
     iterations: u32,
 
     /// Length of the generated password.
-    #[structopt(short = "l", long = "length", default_value = "16")]
+    #[arg(short = 'l', long = "length", default_value = "16")]
     length: u32,
 
     /// Arbitrary number used for password generation.
-    #[structopt(short = "c", long = "counter", default_value = "1")]
+    #[arg(short = 'c', long = "counter", default_value = "1")]
     counter: u32,
 
     /// Use SHA-256 for password generation.
-    #[structopt(long = "sha256")]
+    #[arg(long = "sha256")]
     sha256: bool,
 
     /// Use SHA-384 for password generation.
-    #[structopt(long = "sha384")]
+    #[arg(long = "sha384")]
     sha384: bool,
 
     /// Use SHA-512 for password generation.
-    #[structopt(long = "sha512")]
+    #[arg(long = "sha512")]
     sha512: bool,
 
     /// Exclude lowercase characters.
-    #[structopt(short = "L", long = "no-lower")]
+    #[arg(short = 'L', long = "no-lower")]
     exclude_lower: bool,
 
     /// Exclude uppercase characters.
-    #[structopt(short = "U", long = "no-upper")]
+    #[arg(short = 'U', long = "no-upper")]
     exclude_upper: bool,
 
     /// Exclude numbers.
-    #[structopt(short = "N", long = "no-numbers")]
+    #[arg(short = 'N', long = "no-numbers")]
     exclude_numbers: bool,
 
     /// Exclude symbols.
-    #[structopt(short = "S", long = "no-symbols")]
+    #[arg(short = 'S', long = "no-symbols")]
     exclude_symbols: bool,
 
     /// Return the entropy instead of generating a password.
-    #[structopt(short = "E", long = "return-entropy")]
+    #[arg(short = 'E', long = "return-entropy")]
     return_entropy: bool,
 
     /// Print the fingerprint.
-    #[structopt(short = "F", long = "print-fingerprint")]
+    #[arg(short = 'F', long = "print-fingerprint")]
     print_fingerprint: bool,
 }
 
@@ -96,7 +96,7 @@ fn main() {
         let res = if !err.is_empty() {
             out.write_all(err.as_bytes()).map_err(|_| ())
         } else {
-            Args::clap().write_long_help(&mut out).map_err(|_| ())
+            Args::command().write_long_help(&mut out).map_err(|_| ())
         };
 
         std::process::exit(if res.is_ok() { 1 } else { 2 })
@@ -120,7 +120,7 @@ fn run() -> Result<(), &'static str> {
         exclude_symbols,
         return_entropy,
         print_fingerprint,
-    } = Args::from_args();
+    } = Args::parse();
 
     let mut out = std::io::stdout();
 
