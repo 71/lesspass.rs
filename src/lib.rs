@@ -4,7 +4,7 @@
 #[cfg(feature = "std")]
 extern crate std;
 
-use hmac::{Hmac, Mac, NewMac};
+use hmac::{Hmac, Mac};
 use pbkdf2::pbkdf2;
 use sha2::{Sha256, Sha384, Sha512};
 
