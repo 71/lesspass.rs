@@ -1,0 +1,52 @@
+# Action based on
+# https://github.com/actions-rs/meta/blob/edeebc14493689cee04cb6d941c42c36a86e9d18/recipes/quickstart.md
+on: [push, pull_request]
+
+name: Continuous integration
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@88dc2356392166efad76775c878094f4e83ff746
+        with:
+          profile: minimal
+          toolchain: 1.60  # MSRV
+          override: true
+      - uses: actions-rs/cargo@9e120dd99b0fbad1c065f686657e914e76bd7b72
+        with:
+          command: test  # Test debug assertions; we don't test with `--release` because it enables a lot more CPU-heavy tests.
+
+  fmt:
+    name: Rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@88dc2356392166efad76775c878094f4e83ff746
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      - run: rustup component add rustfmt
+      - uses: actions-rs/cargo@9e120dd99b0fbad1c065f686657e914e76bd7b72
+        with:
+          command: fmt
+          args: --all -- --check
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@88dc2356392166efad76775c878094f4e83ff746
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      - run: rustup component add clippy
+      - uses: actions-rs/cargo@9e120dd99b0fbad1c065f686657e914e76bd7b72
+        with:
+          command: clippy
+          args: -- -D warnings
