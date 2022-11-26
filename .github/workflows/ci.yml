@@ -13,7 +13,7 @@ jobs:
       - uses: actions-rs/toolchain@88dc2356392166efad76775c878094f4e83ff746
         with:
           profile: minimal
-          toolchain: 1.60  # MSRV
+          toolchain: "1.60"  # MSRV
           override: true
       - uses: actions-rs/cargo@9e120dd99b0fbad1c065f686657e914e76bd7b72
         with:
