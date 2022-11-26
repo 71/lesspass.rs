@@ -4,6 +4,8 @@
 #[cfg(feature = "std")]
 extern crate std;
 
+use core::mem::MaybeUninit;
+
 use hmac::{Hmac, Mac};
 use pbkdf2::pbkdf2;
 use sha2::{Sha256, Sha384, Sha512};
@@ -111,19 +113,37 @@ impl CharacterSet {
 ///
 /// Returns `Ok(written_size)` if `output` is large enough, and
 /// `Err(required_size)` if it isn't (in which case nothing will be written).
+#[inline]
 pub fn generate_salt_to(
     website: &str,
     username: &str,
     counter: u32,
-    mut output: &mut [u8],
+    output: &mut [u8],
 ) -> Result<usize, usize> {
-    let mut counter_buf = [0; 8];
+    generate_salt_to_uninit(
+        website,
+        username,
+        counter,
+        slice_to_maybe_uninit_mut(output),
+    )
+    .map(|x| x.len())
+}
+
+/// Same as [`generate_salt_to`], but works with an uninitialized output
+/// buffer, which is okay since it only writes to it, without reading from it.
+pub fn generate_salt_to_uninit<'out>(
+    website: &str,
+    username: &str,
+    counter: u32,
+    output: &'out mut [MaybeUninit<u8>],
+) -> Result<&'out mut [u8], usize> {
+    let mut counter_buf = [MaybeUninit::uninit(); 8];
     let counter = {
         let mut counter = counter as usize;
         let mut i = counter_buf.len();
 
         while counter != 0 {
-            counter_buf[i - 1] = b"0123456789abcdef"[counter & 0xf];
+            counter_buf[i - 1].write(b"0123456789abcdef"[counter & 0xf]);
             counter >>= 4;
             i -= 1;
         }
@@ -132,20 +152,25 @@ pub fn generate_salt_to(
     };
 
     let required_len = website.len() + username.len() + counter.len();
+    let mut offset = 0;
 
     if output.len() < required_len {
         return Err(required_len);
     }
 
-    output[..website.len()].copy_from_slice(website.as_bytes());
-    output = &mut output[website.len()..];
+    output[offset..offset + website.len()]
+        .copy_from_slice(slice_to_maybe_uninit_ref(website.as_bytes()));
+    offset += website.len();
 
-    output[..username.len()].copy_from_slice(username.as_bytes());
-    output = &mut output[username.len()..];
+    output[offset..offset + username.len()]
+        .copy_from_slice(slice_to_maybe_uninit_ref(username.as_bytes()));
+    offset += username.len();
 
-    output[..counter.len()].copy_from_slice(counter);
+    output[offset..offset + counter.len()].copy_from_slice(counter);
+    offset += counter.len();
 
-    Ok(required_len)
+    // SAFETY: all bytes up to `offset` were written to (and thus initialized).
+    Ok(unsafe { &mut *(&mut output[..offset] as *mut [MaybeUninit<u8>] as *mut [u8]) })
 }
 
 /// Same as [`generate_salt_to`], but directly returns the salt instead of
@@ -161,12 +186,18 @@ pub fn generate_salt(website: &str, username: &str, counter: u32) -> std::vec::V
         counter_len += 1;
     }
 
-    let mut output = std::vec![0; website.len() + username.len() + counter_len];
-    let result = generate_salt_to(website, username, counter, &mut output);
+    let mut uninit_output = uninit_vec(website.len() + username.len() + counter_len);
+    let result = generate_salt_to_uninit(website, username, counter, &mut uninit_output);
 
-    debug_assert_eq!(result, Ok(output.len()));
+    // Make sure that the result (the initialized subslice of `uninit_output`)
+    // has the same length as `uninit_output` itself.
+    debug_assert_eq!(result.map(|x| x.len()), Ok(uninit_output.len()));
 
-    output
+    // SAFETY: `uninit_output` was fully initialized in
+    // `generate_salt_to_uninit`.
+    unsafe {
+        std::mem::transmute::<std::vec::Vec<MaybeUninit<u8>>, std::vec::Vec<u8>>(uninit_output)
+    }
 }
 
 /// The minimum length of the entropy in bytes, inclusive.
@@ -177,6 +208,9 @@ pub const MAX_ENTROPY_LEN: usize = 64;
 
 /// Generates the entropy needed to render the end password using a previously
 /// computed salt and a master password, and writes it to `output`.
+///
+/// Note that this function does not support an `uninit` output buffer since it
+/// internally uses external functions that only accept initialized data.
 ///
 /// # Panics
 ///
@@ -252,14 +286,13 @@ pub const MIN_PASSWORD_LEN: usize = 5;
 /// The maximum length of the rendered password, inclusive.
 pub const MAX_PASSWORD_LEN: usize = 35;
 
-/// Generates a password of the given length using the provided entropy and
-/// character sets, and writes it to `output`.
-///
-/// # Panics
-///
-/// Panics if `output` is smaller than [`MIN_PASSWORD_LEN`] or greater than
-/// [`MAX_PASSWORD_LEN`], or if `entropy` is empty, or if `charset` is empty.
-pub fn render_password_to(entropy: &[u8], charset: CharacterSet, output: &mut [u8]) {
+/// Same as [`render_password_to`], but works with an uninitialized output
+/// buffer, which is okay since it only writes to it, without reading from it.
+pub fn render_password_to_uninit<'out>(
+    entropy: &[u8],
+    charset: CharacterSet,
+    output: &'out mut [MaybeUninit<u8>],
+) -> &'out mut [u8] {
     assert!(!entropy.is_empty());
     assert!(!charset.is_empty());
 
@@ -275,10 +308,10 @@ pub fn render_password_to(entropy: &[u8], charset: CharacterSet, output: &mut [u
     // Generate initial part of the password.
     let mut quotient = BigUint::from_big_endian(entropy);
 
-    for _ in 0..(len as usize - sets_len) {
+    for _ in 0..(len - sets_len) {
         let rem = div_rem(&mut quotient, chars.len());
 
-        output[offset] = chars[rem];
+        output[offset].write(chars[rem]);
         offset += 1;
     }
 
@@ -300,12 +333,27 @@ pub fn render_password_to(entropy: &[u8], charset: CharacterSet, output: &mut [u
 
         // Insert `ch` at `rem`.
         output.copy_within(rem..output.len() - 1, rem + 1);
-        output[rem] = ch;
+        output[rem].write(ch);
 
         offset += 1;
     }
 
     debug_assert_eq!(offset, len);
+
+    // SAFETY: all bytes in `output` were written to (`offset == len`).
+    unsafe { &mut *(output as *mut [MaybeUninit<u8>] as *mut [u8]) }
+}
+
+/// Generates a password of the given length using the provided entropy and
+/// character sets, and writes it to `output`.
+///
+/// # Panics
+///
+/// Panics if `output` is smaller than [`MIN_PASSWORD_LEN`] or greater than
+/// [`MAX_PASSWORD_LEN`], or if `entropy` is empty, or if `charset` is empty.
+#[inline]
+pub fn render_password_to(entropy: &[u8], charset: CharacterSet, output: &mut [u8]) {
+    render_password_to_uninit(entropy, charset, slice_to_maybe_uninit_mut(output));
 }
 
 /// Same as [`render_password_to`], but directly returns the rendered password
@@ -313,14 +361,15 @@ pub fn render_password_to(entropy: &[u8], charset: CharacterSet, output: &mut [u
 #[cfg(feature = "std")]
 #[inline]
 pub fn render_password(entropy: &[u8], charset: CharacterSet, len: usize) -> std::string::String {
-    let mut output = std::vec::Vec::with_capacity(len);
+    let mut uninit_output = uninit_vec(len);
 
-    // SAFETY: bytes are uninitialized and only written to; not read.
-    unsafe {
-        output.set_len(len);
-    }
+    render_password_to_uninit(entropy, charset, &mut uninit_output);
 
-    render_password_to(entropy, charset, &mut output);
+    // SAFETY: `uninit_output` was fully initialized in
+    // `render_password_to_uninit`.
+    let output = unsafe {
+        std::mem::transmute::<std::vec::Vec<MaybeUninit<u8>>, std::vec::Vec<u8>>(uninit_output)
+    };
 
     // SAFETY: characters are all extracted from `charset`, which only contains
     // a limited set of ASCII characters.
@@ -350,10 +399,35 @@ fn div_rem(quot: &mut BigUint, div: usize) -> usize {
         // directly equivalent to an `usize` value.
         rem.low_u64() as usize
     } else {
-        // We use `as_usize` below, but given that we divided by an `usize`
+        // We use `as_usize` below, and given that we divided by an `usize`
         // above it is certain that `as_usize` will succeed.
-        rem.as_usize() as usize
+        rem.as_usize()
     }
+}
+
+#[inline(always)]
+fn slice_to_maybe_uninit_ref<T>(slice: &[T]) -> &[MaybeUninit<T>] {
+    // SAFETY: a `T` is just an initialized `MaybeUninit<T>`.
+    unsafe { &*(slice as *const [T] as *const [MaybeUninit<T>]) }
+}
+
+#[inline(always)]
+fn slice_to_maybe_uninit_mut<T>(slice: &mut [T]) -> &mut [MaybeUninit<T>] {
+    // SAFETY: a `T` is just an initialized `MaybeUninit<T>`.
+    unsafe { &mut *(slice as *mut [T] as *mut [MaybeUninit<T>]) }
+}
+
+#[cfg(feature = "std")]
+#[inline(always)]
+fn uninit_vec<T>(len: usize) -> std::vec::Vec<MaybeUninit<T>> {
+    // Rust can optimize this well in theory:
+    // https://rust.godbolt.org/z/fr3cKbd9s.
+    // Since this is only use in `std` builds and that it requires an allocation
+    // anyway, the lack of guarantee that this is as optimized as using
+    // `set_len` is acceptable.
+    std::iter::repeat_with(MaybeUninit::uninit)
+        .take(len)
+        .collect()
 }
 
 #[cfg(test)]
@@ -459,9 +533,6 @@ mod entropy_tests {
         let mut entropy = [0; 16];
         generate_entropy_to("password", &salt, Algorithm::SHA512, 8192, &mut entropy);
 
-        assert_eq!(
-            &entropy[..],
-            to_bytes("fff211c16a4e776b3574c6a5c91fd252"),
-        );
+        assert_eq!(&entropy[..], to_bytes("fff211c16a4e776b3574c6a5c91fd252"),);
     }
 }
