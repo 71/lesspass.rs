@@ -91,14 +91,18 @@ jobs:
         shell: bash
         run: |
           BINARY_PATH="target/${{ matrix.target }}/release/lesspass"
-          ARCHIVE_NAME="lesspass-${{ needs.version.outputs.version }}"
+          ARCHIVE_NAME="lesspass-${{ needs.version.outputs.version }}-${{ matrix.target }}"
+
+          mkdir "$ARCHIVE_NAME"
 
           if [ "${{ matrix.target }}" = "x86_64-pc-windows-gnu" ]; then
+            cp "$BINARY_PATH.exe" "$ARCHIVE_NAME"
             ARCHIVE="$ARCHIVE_NAME.zip"
-            7z a "$ARCHIVE" "$BINARY_PATH.exe"
+            7z a "$ARCHIVE" "$ARCHIVE_NAME"
           else
+            cp "$BINARY_PATH" "$ARCHIVE_NAME"
             ARCHIVE="$ARCHIVE_NAME.tar.gz"
-            tar czf "$ARCHIVE" "$BINARY_PATH"
+            tar czf "$ARCHIVE" "$ARCHIVE_NAME"
           fi
 
           openssl dgst -r -sha256 -out "$ARCHIVE.sha256" "$ARCHIVE"
