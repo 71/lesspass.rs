@@ -428,11 +428,11 @@ fn uninit_vec<T>(len: usize) -> std::vec::Vec<MaybeUninit<T>> {
 
 #[cfg(feature = "std")]
 #[inline(always)]
-unsafe fn assume_init_vec(mut vec: std::vec::Vec<MaybeUninit<u8>>) -> std::vec::Vec<u8> {
-    let (ptr, length, capacity) = (vec.as_mut_ptr(), vec.len(), vec.capacity());
+unsafe fn assume_init_vec(vec: std::vec::Vec<MaybeUninit<u8>>) -> std::vec::Vec<u8> {
+    let mut vec = core::mem::ManuallyDrop::new(vec);
+    let (ptr, len, capacity) = (vec.as_mut_ptr(), vec.len(), vec.capacity());
 
-    std::mem::forget(vec);
-    std::vec::Vec::from_raw_parts(ptr.cast(), length, capacity)
+    std::vec::Vec::from_raw_parts(ptr.cast(), len, capacity)
 }
 
 #[cfg(test)]
