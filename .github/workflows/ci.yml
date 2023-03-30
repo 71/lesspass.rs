@@ -50,3 +50,74 @@ jobs:
         with:
           command: clippy
           args: -- -D warnings
+
+  release:
+    name: Release binaries
+    if: ${{ github.event_name == 'push' }}
+    needs: [test, fmt, clippy]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target:
+          - aarch64-unknown-linux-gnu
+          - x86_64-pc-windows-gnu
+          - x86_64-unknown-linux-gnu
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@88dc2356392166efad76775c878094f4e83ff746
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+          target: ${{ matrix.target }}
+      - uses: actions-rs/cargo@9e120dd99b0fbad1c065f686657e914e76bd7b72
+        with:
+          command: build
+          args: --release --target ${{ matrix.target }} --bin lesspass
+          use-cross: true
+
+      - name: Create tag on new version
+        uses: ButlerLogic/action-autotag@c3786d617002bf8f89eec2eac64b0842fd7f5826
+        id: autotag
+        with:
+          tag_prefix: v
+          root: Cargo.toml
+          regex_pattern: '^version\s*=\s*"([0-9\.])"'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Strip release binary
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        run: strip "target/${{ matrix.target }}/release/lesspass"
+
+      - name: Package binary
+        shell: bash
+        run: |
+          BINARY_PATH="target/${{ matrix.target }}/release/lesspass"
+          ARCHIVE_NAME="lesspass-${{ steps.autotag.outputs.version }}"
+
+          if [ "${{ matrix.target }}" = "x86_64-pc-windows-gnu" ]; then
+            ARCHIVE="$ARCHIVE_NAME.zip"
+            7z a "$ARCHIVE" "$BINARY_PATH.exe"
+          else
+            ARCHIVE="$ARCHIVE_NAME.tar.gz"
+            tar czf "$ARCHIVE" "$BINARY_PATH"
+          fi
+
+          openssl dgst -r -sha256 -out "$ARCHIVE.sha256" "$ARCHIVE"
+          openssl dgst -r -sha512 -out "$ARCHIVE.sha512" "$ARCHIVE"
+
+          echo "ASSET=$ARCHIVE" >> $GITHUB_ENV
+
+      - name: Create release
+        uses: softprops/action-gh-release@c9b46fe7aad9f02afd89b12450b780f52dacfb2d
+        if: steps.autotag.outputs.tagcreated == 'yes'
+        with:
+          fail_on_unmatched_files: true
+          tag_name: ${{ steps.autotag.outputs.tagname }}
+          files: |
+            ${{ env.ASSET }}
+            ${{ env.ASSET }}.sha256
+            ${{ env.ASSET }}.sha512
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
