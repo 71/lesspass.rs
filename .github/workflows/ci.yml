@@ -5,8 +5,8 @@ on: [push, pull_request]
 name: Continuous integration
 
 jobs:
-  test:
-    name: Tests
+  ci:
+    name: CI
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -15,46 +15,50 @@ jobs:
           profile: minimal
           toolchain: "1.60"  # MSRV
           override: true
-      - uses: actions-rs/cargo@9e120dd99b0fbad1c065f686657e914e76bd7b72
+
+      - name: Tests
+        uses: actions-rs/cargo@9e120dd99b0fbad1c065f686657e914e76bd7b72
         with:
           command: test  # Test debug assertions; we don't test with `--release` because it enables a lot more CPU-heavy tests.
 
-  fmt:
-    name: Rustfmt
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@88dc2356392166efad76775c878094f4e83ff746
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
       - run: rustup component add rustfmt
-      - uses: actions-rs/cargo@9e120dd99b0fbad1c065f686657e914e76bd7b72
+      - name: Rustfmt
+        uses: actions-rs/cargo@9e120dd99b0fbad1c065f686657e914e76bd7b72
         with:
           command: fmt
           args: --all -- --check
 
-  clippy:
-    name: Clippy
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@88dc2356392166efad76775c878094f4e83ff746
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
       - run: rustup component add clippy
-      - uses: actions-rs/cargo@9e120dd99b0fbad1c065f686657e914e76bd7b72
+      - name: Clippy
+        uses: actions-rs/cargo@9e120dd99b0fbad1c065f686657e914e76bd7b72
         with:
           command: clippy
           args: -- -D warnings
 
+  version:
+    name: Create tag
+    needs: ci
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Create tag on new version
+        uses: ButlerLogic/action-autotag@c3786d617002bf8f89eec2eac64b0842fd7f5826
+        id: autotag
+        with:
+          tag_prefix: v
+          root: Cargo.toml
+          regex_pattern: '^version\s*=\s*"([0-9.]+)"'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    outputs:
+      is-new-version: ${{ steps.autotag.outputs.created == 'yes' }}
+      version: ${{ steps.autotag.outputs.version }}
+
   release:
     name: Release binaries
-    if: ${{ github.event_name == 'push' }}
-    needs: [test, fmt, clippy]
+    needs: version
+    if: ${{ github.event_name == 'push' && needs.version.outputs.is-new-version }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -64,6 +68,7 @@ jobs:
           - x86_64-unknown-linux-gnu
     steps:
       - uses: actions/checkout@v2
+
       - uses: actions-rs/toolchain@88dc2356392166efad76775c878094f4e83ff746
         with:
           profile: minimal
@@ -76,25 +81,15 @@ jobs:
           args: --release --target ${{ matrix.target }} --bin lesspass
           use-cross: true
 
-      - name: Create tag on new version
-        uses: ButlerLogic/action-autotag@c3786d617002bf8f89eec2eac64b0842fd7f5826
-        id: autotag
-        with:
-          tag_prefix: v
-          root: Cargo.toml
-          regex_pattern: '^version\s*=\s*"([0-9\.])"'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Strip release binary
-        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        if: ${{ matrix.target == 'x86_64-unknown-linux-gnu' }}
         run: strip "target/${{ matrix.target }}/release/lesspass"
 
       - name: Package binary
         shell: bash
         run: |
           BINARY_PATH="target/${{ matrix.target }}/release/lesspass"
-          ARCHIVE_NAME="lesspass-${{ steps.autotag.outputs.version }}"
+          ARCHIVE_NAME="lesspass-${{ needs.version.outputs.version }}"
 
           if [ "${{ matrix.target }}" = "x86_64-pc-windows-gnu" ]; then
             ARCHIVE="$ARCHIVE_NAME.zip"
@@ -111,10 +106,9 @@ jobs:
 
       - name: Create release
         uses: softprops/action-gh-release@c9b46fe7aad9f02afd89b12450b780f52dacfb2d
-        if: steps.autotag.outputs.tagcreated == 'yes'
         with:
           fail_on_unmatched_files: true
-          tag_name: ${{ steps.autotag.outputs.tagname }}
+          tag_name: v${{ needs.version.outputs.version }}
           files: |
             ${{ env.ASSET }}
             ${{ env.ASSET }}.sha256
