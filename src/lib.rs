@@ -195,9 +195,7 @@ pub fn generate_salt(website: &str, username: &str, counter: u32) -> std::vec::V
 
     // SAFETY: `uninit_output` was fully initialized in
     // `generate_salt_to_uninit`.
-    unsafe {
-        std::mem::transmute::<std::vec::Vec<MaybeUninit<u8>>, std::vec::Vec<u8>>(uninit_output)
-    }
+    unsafe { assume_init_vec(uninit_output) }
 }
 
 /// The minimum length of the entropy in bytes, inclusive.
@@ -367,9 +365,7 @@ pub fn render_password(entropy: &[u8], charset: CharacterSet, len: usize) -> std
 
     // SAFETY: `uninit_output` was fully initialized in
     // `render_password_to_uninit`.
-    let output = unsafe {
-        std::mem::transmute::<std::vec::Vec<MaybeUninit<u8>>, std::vec::Vec<u8>>(uninit_output)
-    };
+    let output = unsafe { assume_init_vec(uninit_output) };
 
     // SAFETY: characters are all extracted from `charset`, which only contains
     // a limited set of ASCII characters.
@@ -428,6 +424,15 @@ fn uninit_vec<T>(len: usize) -> std::vec::Vec<MaybeUninit<T>> {
     std::iter::repeat_with(MaybeUninit::uninit)
         .take(len)
         .collect()
+}
+
+#[cfg(feature = "std")]
+#[inline(always)]
+unsafe fn assume_init_vec(mut vec: std::vec::Vec<MaybeUninit<u8>>) -> std::vec::Vec<u8> {
+    let (ptr, length, capacity) = (vec.as_mut_ptr(), vec.len(), vec.capacity());
+
+    std::mem::forget(vec);
+    std::vec::Vec::from_raw_parts(ptr.cast(), length, capacity)
 }
 
 #[cfg(test)]
