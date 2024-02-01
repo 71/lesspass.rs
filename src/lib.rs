@@ -6,8 +6,10 @@ extern crate std;
 
 use core::mem::MaybeUninit;
 
-use hmac::{Hmac, Mac};
-use pbkdf2::pbkdf2;
+use pbkdf2::{
+    hmac::{Hmac, Mac as _},
+    pbkdf2_hmac,
+};
 use sha2::{Sha256, Sha384, Sha512};
 
 /// Selects the hash algorithm to use in PBKDF2.
@@ -34,14 +36,16 @@ pub enum Algorithm {
 bitflags::bitflags! {
     /// Flag that describes what characters are allowed when generating a
     /// password.
+    #[derive(Clone, Copy)]
+    #[repr(transparent)]
     pub struct CharacterSet: u8 {
         const Uppercase = 0b0001;
         const Lowercase = 0b0010;
         const Numbers   = 0b0100;
         const Symbols   = 0b1000;
 
-        const Letters   = Self::Uppercase.bits | Self::Lowercase.bits;
-        const All       = Self::Letters.bits | Self::Numbers.bits | Self::Symbols.bits;
+        const Letters   = Self::Uppercase.bits() | Self::Lowercase.bits();
+        const All       = Self::Letters.bits() | Self::Numbers.bits() | Self::Symbols.bits();
     }
 }
 
@@ -229,13 +233,13 @@ pub fn generate_entropy_to(
 
     match algorithm {
         Algorithm::SHA256 => {
-            pbkdf2::<Hmac<Sha256>>(master_password.as_bytes(), salt, iterations, output)
+            pbkdf2_hmac::<Sha256>(master_password.as_bytes(), salt, iterations, output)
         }
         Algorithm::SHA384 => {
-            pbkdf2::<Hmac<Sha384>>(master_password.as_bytes(), salt, iterations, output)
+            pbkdf2_hmac::<Sha384>(master_password.as_bytes(), salt, iterations, output)
         }
         Algorithm::SHA512 => {
-            pbkdf2::<Hmac<Sha512>>(master_password.as_bytes(), salt, iterations, output)
+            pbkdf2_hmac::<Sha512>(master_password.as_bytes(), salt, iterations, output)
         }
     }
 }
