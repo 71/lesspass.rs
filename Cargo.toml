@@ -8,7 +8,7 @@ repository = "https://github.com/71/lesspass.rs"
 readme     = "README.md"
 license    = "GPL-3.0-only"
 edition    = "2021"
-rust-version = "1.60"  # MSRV
+rust-version = "1.70"  # MSRV
 
 keywords = ["cli", "password", "generator"]
 categories = ["algorithms", "command-line-utilities"]
