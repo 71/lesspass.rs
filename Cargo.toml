@@ -28,10 +28,9 @@ uint        = { version = "0.9", default-features = false }
 pbkdf2      = { version = "0.12", default-features = false, features = ["hmac"] }
 sha2        = { version = "0.10", default-features = false }
 
-atty      = { version = "0.2", optional = true }
 clap      = { version = "4.0", optional = true, features = ["derive"] }
 rpassword = { version = "7.1", optional = true }
 
 [features]
-default = [ "atty", "clap", "rpassword", "std" ]
+default = [ "clap", "rpassword", "std" ]
 std = []

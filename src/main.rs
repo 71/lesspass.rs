@@ -1,7 +1,7 @@
 use clap::{CommandFactory as _, Parser};
 use lesspass::*;
 
-use std::io::Write;
+use std::io::{IsTerminal, Write};
 
 /// Generates LessPass-like passwords.
 #[derive(Parser)]
@@ -182,7 +182,7 @@ fn run() -> Result<(), &'static str> {
                 Some(pass) => pass,
                 None => {
                     // Get entropy from standard input.
-                    if atty::is(atty::Stream::Stdin) {
+                    if std::io::stdin().is_terminal() {
                         // Stdin is a terminal, and no one in their right mind would copy
                         // the entropy by hand, so we cancel early.
                         return Err("");
@@ -249,7 +249,7 @@ fn print_buffer_hex(buf: &[u8], out: &mut dyn Write) -> Result<(), &'static str>
 fn read_password() -> Result<String, &'static str> {
     // If the input is passed from Stdin, it fails on my machine,
     // so we handle this here
-    if atty::is(atty::Stream::Stdin) {
+    if std::io::stdin().is_terminal() {
         rpassword::read_password().map_err(|_| "Unable to read password or entropy.")
     } else {
         let stdin = std::io::stdin();
