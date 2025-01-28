@@ -45,7 +45,7 @@ fn t(
                         charset |= CharacterSet::Uppercase;
                     }
                     if digits {
-                        charset |= CharacterSet::Numbers;
+                        charset |= CharacterSet::Digits;
                     }
                     if symbols {
                         charset |= CharacterSet::Symbols;

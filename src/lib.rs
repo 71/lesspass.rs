@@ -41,24 +41,24 @@ bitflags::bitflags! {
     pub struct CharacterSet: u8 {
         const Uppercase = 0b0001;
         const Lowercase = 0b0010;
-        const Numbers   = 0b0100;
+        const Digits    = 0b0100;
         const Symbols   = 0b1000;
 
         const Letters   = Self::Uppercase.bits() | Self::Lowercase.bits();
-        const All       = Self::Letters.bits() | Self::Numbers.bits() | Self::Symbols.bits();
+        const All       = Self::Letters.bits() | Self::Digits.bits() | Self::Symbols.bits();
     }
 }
 
 impl CharacterSet {
     const LOWERCASE: &'static str = "abcdefghijklmnopqrstuvwxyz";
     const UPPERCASE: &'static str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    const NUMBERS: &'static str = "0123456789";
+    const DIGITS: &'static str = "0123456789";
     const SYMBOLS: &'static str = "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~";
 
     /// Returns a string that contains all the characters that may be used to
     /// generate a password.
     pub const fn get_characters(self) -> &'static str {
-        match (self.contains(Self::Lowercase), self.contains(Self::Uppercase), self.contains(Self::Numbers), self.contains(Self::Symbols)) {
+        match (self.contains(Self::Lowercase), self.contains(Self::Uppercase), self.contains(Self::Digits), self.contains(Self::Symbols)) {
             (true , true , true , true ) => "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~",
             (true , true , true , false) => "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
             (true , true , false, true ) => "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~",
@@ -75,7 +75,7 @@ impl CharacterSet {
             (false, true , false, false) => Self::UPPERCASE,
 
             (false, false, true , true ) => "0123456789!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~",
-            (false, false, true , false) => Self::NUMBERS,
+            (false, false, true , false) => Self::DIGITS,
             (false, false, false, true ) => Self::SYMBOLS,
 
             _ => ""
@@ -99,8 +99,8 @@ impl CharacterSet {
             sets[sets_len] = Self::UPPERCASE;
             sets_len += 1;
         }
-        if self.contains(Self::Numbers) {
-            sets[sets_len] = Self::NUMBERS;
+        if self.contains(Self::Digits) {
+            sets[sets_len] = Self::DIGITS;
             sets_len += 1;
         }
         if self.contains(Self::Symbols) {

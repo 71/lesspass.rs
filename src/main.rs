@@ -72,9 +72,9 @@ pub struct Args {
     #[arg(short = 'U', long = "no-upper")]
     exclude_upper: bool,
 
-    /// Exclude numbers.
-    #[arg(short = 'N', long = "no-numbers")]
-    exclude_numbers: bool,
+    /// Exclude digits.
+    #[arg(short = 'D', long = "no-digits")]
+    exclude_digits: bool,
 
     /// Exclude symbols.
     #[arg(short = 'S', long = "no-symbols")]
@@ -116,7 +116,7 @@ fn run() -> Result<(), &'static str> {
         sha512,
         exclude_lower,
         exclude_upper,
-        exclude_numbers,
+        exclude_digits,
         exclude_symbols,
         return_entropy,
         print_fingerprint,
@@ -142,8 +142,8 @@ fn run() -> Result<(), &'static str> {
     if exclude_upper {
         charset.remove(CharacterSet::Uppercase);
     }
-    if exclude_numbers {
-        charset.remove(CharacterSet::Numbers);
+    if exclude_digits {
+        charset.remove(CharacterSet::Digits);
     }
     if exclude_symbols {
         charset.remove(CharacterSet::Symbols);

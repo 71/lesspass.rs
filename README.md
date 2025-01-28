@@ -20,7 +20,7 @@ USAGE:
 
 FLAGS:
     -L, --no-lower          Exclude lowercase characters.
-    -N, --no-numbers        Exclude numbers.
+    -D, --no-digits         Exclude digits.
     -S, --no-symbols        Exclude symbols.
     -U, --no-upper          Exclude uppercase characters.
     -h, --help              Prints help information
