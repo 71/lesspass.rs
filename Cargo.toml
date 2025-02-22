@@ -1,7 +1,7 @@
 [package]
 name        = "lesspass"
 description = "An efficient implementation of the LessPass password generator."
-version     = "0.4.2"
+version     = "0.5.0"
 authors     = ["Grégoire Geis <opensource@gregoirege.is>"]
 
 repository = "https://github.com/71/lesspass.rs"
